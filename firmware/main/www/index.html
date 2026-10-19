@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireless Serial</title>
+<style>
+  :root {
+    --bg: #0f1720; --panel: #182430; --panel2: #1f2e3d; --line: #2b3d4f;
+    --fg: #d9e6f2; --dim: #8aa2b8; --accent: #39c0a0; --warn: #e0a458; --err: #e05f5f;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+           padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 18px; letter-spacing: .5px; }
+  header .sub { color: var(--dim); font-size: 12px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 16px; display: grid;
+          gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+            padding: 14px 16px; }
+  section h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase;
+               letter-spacing: .8px; color: var(--dim); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .kv { background: var(--panel2); border-radius: 8px; padding: 8px 10px; }
+  .kv .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+  .kv .v { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+  label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+  input, select { width: 100%; background: #12202b; color: var(--fg); border: 1px solid var(--line);
+                  border-radius: 7px; padding: 7px 9px; font-family: var(--mono); font-size: 13px; }
+  input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+  .row > .field { flex: 1 1 110px; }
+  button { cursor: pointer; background: var(--panel2); color: var(--fg);
+           border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px;
+           font-size: 13px; }
+  button:hover { border-color: var(--accent); color: #fff; }
+  button.primary { background: #145546; border-color: #1c7a63; }
+  button.primary:hover { background: #1a6a56; }
+  button.on { background: #2a5b4c; border-color: var(--accent); }
+  button.danger { border-color: #6b3030; }
+  button.danger:hover { background: #5a2323; border-color: var(--err); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .notice { margin-top: 10px; padding: 8px 10px; border-radius: 7px; font-size: 12px;
+            background: #243447; color: var(--warn); display: none; }
+  .notice.show { display: block; }
+  #scan-results { margin-top: 10px; max-height: 180px; overflow: auto; display: none; }
+  #scan-results.show { display: block; }
+  .ap { display: flex; justify-content: space-between; gap: 8px; padding: 7px 9px;
+        border-bottom: 1px solid var(--line); cursor: pointer; font-size: 12px; }
+  .ap:hover { background: var(--panel2); }
+  .ap .ssid { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ap .meta { color: var(--dim); white-space: nowrap; }
+  .term-section { grid-column: 1 / -1; }
+  .term-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .term-head h2 { margin: 0; }
+  .term-head .spacer { flex: 1; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--panel2);
+           color: var(--dim); border: 1px solid var(--line); }
+  .badge.ok { color: #7ee2c3; border-color: #1c7a63; }
+  .badge.err { color: #ff9c9c; border-color: #6b3030; }
+  #term { height: 320px; overflow: auto; background: #0a1118; border: 1px solid var(--line);
+          border-radius: 8px; padding: 10px; font-family: var(--mono); font-size: 13px;
+          white-space: pre-wrap; word-break: break-all; }
+  .term-input { display: flex; gap: 8px; margin-top: 10px; }
+  .term-input input { flex: 1; }
+  .term-input select { width: 92px; flex: none; }
+  .foot { color: var(--dim); font-size: 11px; padding: 0 20px 20px; max-width: 1080px; margin: 0 auto; }
+  .muted { color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Wireless Serial</h1>
+  <span class="sub" id="hdr-sub">ESP32-C3 · WSP/1</span>
+</header>
+
+<div class="wrap">
+  <section>
+    <h2>设备状态</h2>
+    <div class="grid">
+      <div class="kv"><div class="k">名称</div><div class="v" id="st-name">-</div></div>
+      <div class="kv"><div class="k">IP</div><div class="v" id="st-ip">-</div></div>
+      <div class="kv"><div class="k">WiFi</div><div class="v" id="st-wifi">-</div></div>
+      <div class="kv"><div class="k">RSSI</div><div class="v" id="st-rssi">-</div></div>
+      <div class="kv"><div class="k">UART</div><div class="v" id="st-uart">-</div></div>
+      <div class="kv"><div class="k">串口客户端</div><div class="v" id="st-client">-</div></div>
+      <div class="kv"><div class="k">RX / TX</div><div class="v" id="st-traffic">-</div></div>
+      <div class="kv"><div class="k">运行时长</div><div class="v" id="st-uptime">-</div></div>
+      <div class="kv"><div class="k">端口 WSP / RAW</div><div class="v" id="st-ports">-</div></div>
+      <div class="kv"><div class="k">MAC</div><div class="v" id="st-mac">-</div></div>
+    </div>
+    <div class="actions">
+      <button class="danger" id="btn-reboot">重启设备</button>
+      <button id="btn-refresh">立即刷新</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>串口参数</h2>
+    <div class="row">
+      <div class="field"><label for="uart-baud">波特率</label>
+        <input id="uart-baud" list="baud-list" inputmode="numeric" value="115200">
+        <datalist id="baud-list">
+          <option>1200</option><option>2400</option><option>4800</option><option>9600</option>
+          <option>19200</option><option>38400</option><option>57600</option><option>115200</option>
+          <option>230400</option><option>460800</option><option>921600</option><option>1500000</option>
+          <option>2000000</option><option>3000000</option>
+        </datalist>
+      </div>
+      <div class="field"><label for="uart-data">数据位</label>
+        <select id="uart-data"><option>8</option><option>7</option><option>6</option><option>5</option></select>
+      </div>
+      <div class="field"><label for="uart-parity">校验</label>
+        <select id="uart-parity"><option value="none">无</option><option value="odd">奇</option><option value="even">偶</option></select>
+      </div>
+      <div class="field"><label for="uart-stop">停止位</label>
+        <select id="uart-stop"><option>1</option><option>2</option></select>
+      </div>
+      <div class="field"><label for="uart-flow">流控</label>
+        <select id="uart-flow"><option value="0">无</option><option value="1">RTS/CTS</option></select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btn-save-uart">应用串口参数</button>
+    </div>
+    <div class="notice" id="uart-notice"></div>
+  </section>
+
+  <section>
+    <h2>设备名</h2>
+    <div class="row">
+      <div class="field"><label for="dev-name">名称（≤15 字节）</label>
+        <input id="dev-name" maxlength="15" placeholder="wserial">
+      </div>
+      <div class="actions" style="margin:0">
+        <button id="btn-save-name">保存名称</button>
+      </div>
+    </div>
+    <div class="notice" id="name-notice"></div>
+  </section>
+
+  <section>
+    <h2>WiFi 配网</h2>
+    <div class="row">
+      <div class="field"><label for="wifi-ssid">SSID</label>
+        <input id="wifi-ssid" placeholder="WiFi 名称">
+      </div>
+      <div class="field"><label for="wifi-pass">密码</label>
+        <input id="wifi-pass" type="password" placeholder="留空表示开放网络">
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btn-scan">扫描附近 WiFi</button>
+      <button class="primary" id="btn-save-wifi">保存并重启连接</button>
+    </div>
+    <div id="scan-results"></div>
+    <div class="notice" id="wifi-notice"></div>
+  </section>
+
+  <section class="term-section">
+    <div class="term-head">
+      <h2>网页串口终端</h2>
+      <span class="badge" id="ws-state">未连接</span>
+      <span class="spacer"></span>
+      <button id="btn-ws">连接串口</button>
+      <button id="btn-dtr">DTR</button>
+      <button id="btn-rts">RTS</button>
+      <button id="btn-clear">清屏</button>
+    </div>
+    <div id="term" tabindex="0"></div>
+    <div class="term-input">
+      <input id="term-input" placeholder="输入要发送的文本，回车发送" disabled>
+      <select id="term-eol">
+        <option value="lf" selected>LF</option>
+        <option value="crlf">CRLF</option>
+        <option value="cr">CR</option>
+        <option value="none">无结尾</option>
+      </select>
+      <button class="primary" id="btn-send" disabled>发送</button>
+    </div>
+    <div class="muted" id="term-hint">提示：串口同一时刻只能被一个客户端占用（WSP / RAW / 网页终端）。连接前请先断开 wserial 工具。</div>
+  </section>
+</div>
+
+<div class="foot">
+  <span id="foot-info">Wireless Serial · WSP/1</span>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var term = $("term");
+  var ws = null;
+  var lineState = { dtr: false, rts: false };
+  var statusTimer = null;
+
+  function esc(s) { return String(s === undefined || s === null ? "" : s); }
+
+  function show(el, text, isErr) {
+    if (!el) return;
+    el.textContent = text;
+    el.style.display = "block";
+    el.style.color = isErr ? "var(--err)" : "var(--warn)";
+  }
+
+  function hide(el) { if (el) el.style.display = "none"; }
+
+  async function api(path, opts) {
+    var res = await fetch(path, opts || {});
+    var body = null;
+    try { body = await res.json(); } catch (e) { body = null; }
+    if (!res.ok) {
+      throw new Error((body && body.error) || ("HTTP " + res.status));
+    }
+    return body;
+  }
+
+  function postJSON(path, obj) {
+    return api(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(obj)
+    });
+  }
+
+  function fmtUptime(sec) {
+    sec = Number(sec) || 0;
+    var d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600);
+    var m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+    if (d > 0) return d + "d " + h + "h " + m + "m";
+    if (h > 0) return h + "h " + m + "m " + s + "s";
+    return m + "m " + s + "s";
+  }
+
+  function parityName(p) {
+    if (p === "odd" || p === 1) return "O";
+    if (p === "even" || p === 2) return "E";
+    return "N";
+  }
+
+  function termAppend(text) {
+    if (!text) return;
+    var atBottom = term.scrollTop + term.clientHeight >= term.scrollHeight - 40;
+    term.appendChild(document.createTextNode(text));
+    while (term.textContent.length > 200000 && term.firstChild) {
+      term.removeChild(term.firstChild);
+    }
+    if (atBottom) term.scrollTop = term.scrollHeight;
+  }
+
+  function refreshStatus() {
+    api("/api/status").then(function (st) {
+      $("st-name").textContent = esc(st.name);
+      $("st-ip").textContent = esc(st.ip) || "-";
+      $("st-wifi").textContent = (st.wifi_mode === "ap" ? "AP: " : "STA: ") + (esc(st.wifi_ssid) || "-");
+      $("st-rssi").textContent = st.wifi_mode === "sta" ? (st.rssi + " dBm") : "-";
+      $("st-uart").textContent = st.uart.baud + " " + st.uart.data_bits + parityName(st.uart.parity) + st.uart.stop_bits +
+        (st.uart.flow ? " RTS/CTS" : "");
+      var client = st.client_connected ? (st.client + " 已连接") : "空闲";
+      $("st-client").textContent = client;
+      $("st-client").style.color = st.client_connected ? "var(--accent)" : "";
+      $("st-traffic").textContent = st.stats.uart_rx_bytes + " / " + st.stats.uart_tx_bytes +
+        (st.stats.uart_overflows ? " (丢 " + st.stats.uart_overflows + ")" : "");
+      $("st-uptime").textContent = fmtUptime(st.uptime);
+      $("st-ports").textContent = st.wsp_port + " / " + st.raw_port;
+      $("st-mac").textContent = esc(st.mac);
+      $("hdr-sub").textContent = "ESP32-C3 · " + (st.name || "wserial") + " · " + (st.ip || "");
+      $("foot-info").textContent = "Wireless Serial · WSP/1 · " + (st.chip || "esp32c3") +
+        " · heap " + st.free_heap + " B";
+    }).catch(function () {
+      $("st-ip").textContent = "连接中断";
+    });
+  }
+
+  function loadConfig() {
+    return api("/api/config").then(function (cfg) {
+      $("uart-baud").value = cfg.baud;
+      $("uart-data").value = String(cfg.data_bits);
+      $("uart-parity").value = cfg.parity;
+      $("uart-stop").value = String(cfg.stop_bits);
+      $("uart-flow").value = String(cfg.flow);
+      $("dev-name").value = cfg.name;
+      $("wifi-ssid").value = cfg.wifi.set ? cfg.wifi.ssid : "";
+      return cfg;
+    });
+  }
+
+  function saveUart() {
+    var payload = {
+      baud: parseInt($("uart-baud").value, 10),
+      data_bits: parseInt($("uart-data").value, 10),
+      parity: $("uart-parity").value,
+      stop_bits: parseInt($("uart-stop").value, 10),
+      flow: parseInt($("uart-flow").value, 10)
+    };
+    hide($("uart-notice"));
+    postJSON("/api/config", payload).then(function () {
+      show($("uart-notice"), "串口参数已应用并保存。");
+      refreshStatus();
+    }).catch(function (e) {
+      show($("uart-notice"), "保存失败：" + e.message, true);
+    });
+  }
+
+  function saveName() {
+    var name = $("dev-name").value.trim();
+    hide($("name-notice"));
+    if (!name) { show($("name-notice"), "名称不能为空", true); return; }
+    postJSON("/api/config", { name: name }).then(function () {
+      show($("name-notice"), "名称已保存（mDNS 记录已更新）。");
+      refreshStatus();
+    }).catch(function (e) {
+      show($("name-notice"), "保存失败：" + e.message, true);
+    });
+  }
+
+  function scanWifi() {
+    var box = $("scan-results");
+    box.textContent = "扫描中…";
+    box.classList.add("show");
+    api("/api/scan").then(function (list) {
+      box.textContent = "";
+      if (!list || !list.length) {
+        box.textContent = "未发现WiFi网络";
+        return;
+      }
+      list.forEach(function (ap) {
+        var row = document.createElement("div");
+        row.className = "ap";
+        var ssid = document.createElement("span");
+        ssid.className = "ssid";
+        ssid.textContent = ap.ssid || "(隐藏网络)";
+        var meta = document.createElement("span");
+        meta.className = "meta";
+        meta.textContent = ap.rssi + " dBm · " + ap.auth;
+        row.appendChild(ssid);
+        row.appendChild(meta);
+        row.addEventListener("click", function () {
+          $("wifi-ssid").value = ap.ssid || "";
+          box.classList.remove("show");
+        });
+        box.appendChild(row);
+      });
+    }).catch(function (e) {
+      box.textContent = "扫描失败：" + e.message;
+    });
+  }
+
+  function saveWifi() {
+    var ssid = $("wifi-ssid").value.trim();
+    var pass = $("wifi-pass").value;
+    hide($("wifi-notice"));
+    if (!ssid) { show($("wifi-notice"), "SSID 不能为空", true); return; }
+    show($("wifi-notice"), "正在保存，设备将在约 1.2 秒后重启…");
+    postJSON("/api/config", { wifi: { ssid: ssid, pass: pass } }).then(function () {
+      show($("wifi-notice"), "已保存。设备重启后将以新配置连接；若连接失败会回退到 SoftAP wserial-XXXXXX。请重新连接本页面。");
+    }).catch(function (e) {
+      show($("wifi-notice"), "保存失败：" + e.message, true);
+    });
+  }
+
+  function rebootDevice() {
+    if (!window.confirm("确定重启设备吗？")) return;
+    postJSON("/api/reboot", {}).then(function () {
+      show($("uart-notice"), "设备重启中…");
+    }).catch(function () {});
+  }
+
+  function setWsState(text, cls) {
+    var badge = $("ws-state");
+    badge.textContent = text;
+    badge.className = "badge" + (cls ? " " + cls : "");
+  }
+
+  function sendLineCmd() {
+    if (!ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify({ cmd: "line", dtr: lineState.dtr ? 1 : 0, rts: lineState.rts ? 1 : 0 }));
+  }
+
+  function updateLineButtons() {
+    $("btn-dtr").classList.toggle("on", lineState.dtr);
+    $("btn-rts").classList.toggle("on", lineState.rts);
+  }
+
+  function wsConnect() {
+    if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
+    var proto = location.protocol === "https:" ? "wss://" : "ws://";
+    ws = new WebSocket(proto + location.host + "/ws");
+    ws.binaryType = "arraybuffer";
+    setWsState("连接中…", "");
+
+    ws.onopen = function () {
+      setWsState("已连接", "ok");
+      $("term-input").disabled = false;
+      $("btn-send").disabled = false;
+      $("btn-ws").textContent = "断开串口";
+      $("term-input").focus();
+    };
+    ws.onclose = function () {
+      setWsState("未连接", "err");
+      $("term-input").disabled = true;
+      $("btn-send").disabled = true;
+      $("btn-ws").textContent = "连接串口";
+      lineState.dtr = false;
+      lineState.rts = false;
+      updateLineButtons();
+      ws = null;
+    };
+    ws.onerror = function () {
+      termAppend("\n[网页终端连接失败，串口可能已被占用]\n");
+    };
+    ws.onmessage = function (ev) {
+      if (typeof ev.data === "string") {
+        var msg = null;
+        try { msg = JSON.parse(ev.data); } catch (e) { msg = null; }
+        if (msg && msg.ok === false) {
+          termAppend("\n[控制错误: " + esc(msg.error) + "]\n");
+        } else if (msg && msg.cmd === "line") {
+          lineState.dtr = !!msg.dtr;
+          lineState.rts = !!msg.rts;
+          updateLineButtons();
+        }
+        return;
+      }
+      var bytes = new Uint8Array(ev.data);
+      termAppend(new TextDecoder("utf-8", { fatal: false }).decode(bytes));
+    };
+  }
+
+  function wsDisconnect() {
+    if (ws) { try { ws.close(); } catch (e) {} }
+  }
+
+  function wsSend() {
+    var text = $("term-input").value;
+    if (!ws || ws.readyState !== 1) { termAppend("\n[未连接]\n"); return; }
+    var eol = $("term-eol").value;
+    var suffix = eol === "crlf" ? "\r\n" : (eol === "cr" ? "\r" : (eol === "lf" ? "\n" : ""));
+    ws.send(text + suffix);
+    $("term-input").value = "";
+    $("term-input").focus();
+  }
+
+  function bind(id, ev, fn) {
+    var el = $(id);
+    if (el) el.addEventListener(ev, fn);
+  }
+
+  bind("btn-refresh", "click", refreshStatus);
+  bind("btn-save-uart", "click", saveUart);
+  bind("btn-save-name", "click", saveName);
+  bind("btn-scan", "click", scanWifi);
+  bind("btn-save-wifi", "click", saveWifi);
+  bind("btn-reboot", "click", rebootDevice);
+  bind("btn-clear", "click", function () { term.textContent = ""; });
+  bind("btn-ws", "click", function () {
+    if (ws && (ws.readyState === 0 || ws.readyState === 1)) { wsDisconnect(); } else { wsConnect(); }
+  });
+  bind("btn-send", "click", wsSend);
+  bind("btn-dtr", "click", function () {
+    lineState.dtr = !lineState.dtr;
+    sendLineCmd();
+    updateLineButtons();
+  });
+  bind("btn-rts", "click", function () {
+    lineState.rts = !lineState.rts;
+    sendLineCmd();
+    updateLineButtons();
+  });
+  bind("term-input", "keydown", function (ev) {
+    if (ev.key === "Enter") { ev.preventDefault(); wsSend(); }
+  });
+
+  setWsState("未连接", "");
+  updateLineButtons();
+  loadConfig().catch(function () {});
+  refreshStatus();
+  statusTimer = setInterval(refreshStatus, 2000);
+  window.addEventListener("beforeunload", function () {
+    if (statusTimer) clearInterval(statusTimer);
+    wsDisconnect();
+  });
+})();
+</script>
+</body>
+</html>

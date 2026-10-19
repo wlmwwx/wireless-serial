@@ -1,0 +1,189 @@
+menu "Wireless Serial"
+
+    config WSP_FW_VERSION_MAJOR
+        int "Firmware major version"
+        range 0 255
+        default 1
+        help
+            Version reported in wsp_dev_info_t (HELLO_ACK / INFO frames).
+
+    config WSP_FW_VERSION_MINOR
+        int "Firmware minor version"
+        range 0 255
+        default 0
+
+    config WSP_FW_VERSION_PATCH
+        int "Firmware patch version"
+        range 0 255
+        default 0
+
+    config WSP_DEVICE_NAME
+        string "Default device name"
+        default "wserial"
+        help
+            Human readable name (max 15 bytes). Used in the WSP device info,
+            mDNS TXT records and the web UI. It can be changed at runtime
+            through the HTTP API and is persisted in NVS.
+
+    config WSP_WIFI_SSID
+        string "Default WiFi SSID"
+        default ""
+        help
+            Station SSID used on first boot when NVS has no WiFi credentials.
+            Leaving this (and/or the password) empty makes the device start
+            the SoftAP provisioning mode immediately.
+
+    config WSP_WIFI_PASSWORD
+        string "Default WiFi password"
+        default ""
+
+    config WSP_AP_PASSWORD
+        string "SoftAP password"
+        default "wserial123"
+        help
+            Password for the wserial-XXXXXX fallback access point.
+            Must be at least 8 characters for WPA2; shorter values start an
+            open network.
+
+    config WSP_AP_CHANNEL
+        int "SoftAP channel"
+        range 1 13
+        default 1
+
+    config WSP_AP_MAX_CLIENTS
+        int "SoftAP max clients"
+        range 1 8
+        default 4
+
+    config WSP_WSP_PORT
+        int "WSP TCP port"
+        range 1 65535
+        default 3333
+        help
+            Port for the WSP/1 framed protocol. Can also be changed through
+            NVS / the HTTP API (a reboot is required).
+
+    config WSP_RAW_PORT
+        int "RAW TCP port"
+        range 1 65535
+        default 3334
+        help
+            Port for the raw byte stream transport (socat / com2tcp).
+
+    config WSP_HTTP_PORT
+        int "HTTP port"
+        range 1 65535
+        default 80
+
+    config WSP_UART_TX_GPIO
+        int "UART1 TX GPIO"
+        range 0 21
+        default 4
+
+    config WSP_UART_RX_GPIO
+        int "UART1 RX GPIO"
+        range 0 21
+        default 5
+
+    config WSP_UART_RTS_GPIO
+        int "UART1 RTS GPIO (-1 = not connected)"
+        default -1
+        help
+            Only used when hardware flow control (RTS/CTS) is enabled.
+
+    config WSP_UART_CTS_GPIO
+        int "UART1 CTS GPIO (-1 = not connected)"
+        default -1
+
+    config WSP_RESET_GPIO
+        int "Target reset (EN) GPIO, driven by RTS (-1 = disabled)"
+        default 3
+        help
+            Active low.  WSP LINE_CTRL RTS bit / RESET_TARGET frames drive this
+            pin.  Set to -1 when the target board is not wired to the adapter.
+
+    config WSP_BOOT_GPIO
+        int "Target boot (IO0) GPIO, driven by DTR (-1 = disabled)"
+        default 10
+        help
+            Active low.  WSP LINE_CTRL DTR bit drives this pin, so the host can
+            put an Arduino/ESP target into download mode together with the
+            reset line.  Set to -1 when not wired.
+
+    config WSP_DEFAULT_BAUD
+        int "Default UART baud rate"
+        range 50 5000000
+        default 115200
+
+    config WSP_DEFAULT_DATA_BITS
+        int "Default UART data bits"
+        range 5 8
+        default 8
+
+    config WSP_DEFAULT_PARITY
+        int "Default UART parity (0=none, 1=odd, 2=even)"
+        range 0 2
+        default 0
+
+    config WSP_DEFAULT_STOP_BITS
+        int "Default UART stop bits"
+        range 1 2
+        default 1
+
+    config WSP_STA_CONNECT_TIMEOUT_MS
+        int "WiFi station connect timeout per attempt (ms)"
+        range 3000 60000
+        default 15000
+
+    config WSP_STA_MAX_RETRIES
+        int "WiFi station connect attempts before SoftAP fallback"
+        range 1 10
+        default 3
+
+    config WSP_HELLO_TIMEOUT_MS
+        int "WSP HELLO handshake timeout (ms)"
+        range 500 30000
+        default 5000
+
+    config WSP_IDLE_TIMEOUT_S
+        int "WSP session idle timeout (seconds)"
+        range 10 3600
+        default 120
+        help
+            The WSP client is expected to send a PING every ~15 s.  When no
+            frame arrives for this long the session is closed.
+
+    config WSP_RX_BUFFER_SIZE
+        int "UART RX stream buffer size (bytes)"
+        range 1024 65536
+        default 8192
+        help
+            Target -> host buffering.  When it fills up while the TCP client is
+            not draining, the newly arriving bytes are dropped and counted in
+            stats.uart_overflows.
+
+    config WSP_TX_BUFFER_SIZE
+        int "UART TX ring buffer size (bytes)"
+        range 1024 65536
+        default 8192
+        help
+            Host -> target buffering inside the UART driver.
+
+    config WSP_STATUS_LED
+        bool "Enable status LED"
+        default n
+        help
+            Optional board LED: solid while a serial client is connected,
+            slow blink when WiFi is up, fast blink in SoftAP provisioning mode.
+
+    config WSP_STATUS_LED_GPIO
+        int "Status LED GPIO"
+        depends on WSP_STATUS_LED
+        default 8
+
+    config WSP_STATUS_LED_ACTIVE_LOW
+        bool "Status LED is active low"
+        depends on WSP_STATUS_LED
+        default y
+
+endmenu

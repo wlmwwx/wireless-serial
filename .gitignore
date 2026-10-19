@@ -1,0 +1,29 @@
+# ESP-IDF toolchain (installed locally, ~2 GB)
+.idf/
+firmware/build/
+build/
+sdkconfig
+sdkconfig.old
+
+# Go
+host/wserial
+host/wserial.exe
+host/dist/
+*.test
+
+# Local build/tool caches (ESP-IDF component manager, Go caches)
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Runtime
+*.log

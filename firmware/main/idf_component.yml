@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=5.0"
+  espressif/mdns:
+    version: "1.14.0"
